@@ -1,0 +1,29 @@
+# Environment files
+.env
+.env.*
+!.env.example
+!example.env
+
+# Dependencies
+node_modules/
+
+# Logs and debug output
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Build and test output
+coverage/
+dist/
+build/
+
+# Local SQLite runtime files
+*.db
+*.db-shm
+*.db-wal
+
+# Local tooling and OS files
+.DS_Store
+.vscode/
