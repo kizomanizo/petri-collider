@@ -834,6 +834,7 @@
     // --- POINTER INTERACTIONS ---
     /** Begin a launcher drag, or reset the current round when running. */
     function handlePointerDown(e) {
+      if (e.type === 'touchstart') e.preventDefault();
       if (isRunning) {
         resetGame();
         return;
@@ -900,7 +901,7 @@
     window.addEventListener('mousemove', handlePointerMove);
     window.addEventListener('mouseup', handlePointerUp);
 
-    triggerAreaEl.addEventListener('touchstart', handlePointerDown, { passive: true });
+    triggerAreaEl.addEventListener('touchstart', handlePointerDown, { passive: false });
     window.addEventListener('touchmove', handlePointerMove, { passive: true });
     window.addEventListener('touchend', handlePointerUp);
 
