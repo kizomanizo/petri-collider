@@ -1321,7 +1321,13 @@
         maxActiveBalls: balls.length,
         totalBallsCreated: totalEverCreated,
         totalEvaporated: totalEvaporated,
-        avgSpeedPxf: parseFloat(avgSpeedEl.textContent)
+        avgSpeedPxf: parseFloat(avgSpeedEl.textContent),
+        browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        browserLanguage: navigator.language || null,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        devicePixelRatio: window.devicePixelRatio || 1,
+        platform: navigator.platform || null
       };
 
       fetch('/api/rounds', {

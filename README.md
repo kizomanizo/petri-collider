@@ -42,11 +42,12 @@ node --check server.js
 
 Create `.env` in the project root. `.env` is ignored by Git; use `example.env` as the shareable template.
 
-| Variable   | Default            | Description                                                  |
-| ---------- | ------------------ | ------------------------------------------------------------ |
-| `PORT`     | `3000`             | HTTP port used by Express                                    |
-| `APP_NAME` | `Petri Collider`   | Name printed in the server startup message                   |
-| `DB_FILE`  | `petricollider.db` | SQLite filename or path, resolved from the project directory |
+| Variable      | Default            | Description                                                       |
+| ------------- | ------------------ | ----------------------------------------------------------------- |
+| `PORT`        | `3000`             | HTTP port used by Express                                         |
+| `APP_NAME`    | `Petri Collider`   | Name printed in the server startup message                        |
+| `DB_FILE`     | `petricollider.db` | SQLite filename or path, resolved from the project directory      |
+| `TRUST_PROXY` | `false`            | Trust reverse-proxy headers when resolving client IP and protocol |
 
 The repository's example configuration uses port `3800`:
 
@@ -54,6 +55,7 @@ The repository's example configuration uses port `3800`:
 PORT=3800
 APP_NAME=PetriCollider
 DB_FILE=petricollider.db
+TRUST_PROXY=false
 ```
 
 ## Project Structure
@@ -109,7 +111,7 @@ The response includes the current global high score:
 
 ## Data and Browser Storage
 
-SQLite is initialized automatically on startup with `players` and `game_rounds` tables. WAL mode is enabled for local database performance. The database, WAL files, `.env`, dependencies, logs, and generated output are excluded by `.gitignore`.
+SQLite is initialized automatically on startup with `players`, `game_rounds`, and `round_request_metadata` tables. WAL mode is enabled for local database performance. Each submitted round stores request metadata such as IP address, user agent, language, referrer, protocol, hostname, and browser context. Geographic location is not collected because IP geolocation requires a separate provider and privacy policy decision. Set `TRUST_PROXY=true` only when Express runs behind a trusted reverse proxy.
 
 The browser stores the current profile, personal high score, and the last 100 personal scores in `localStorage`. Clearing site data removes those local values but does not remove server-side telemetry.
 

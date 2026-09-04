@@ -13,6 +13,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const APP_NAME = process.env.APP_NAME || "Petri Collider";
 const DB_FILE = process.env.DB_FILE || "petricollider.db";
 app.locals.appName = APP_NAME;
+app.set("trust proxy", process.env.TRUST_PROXY === "true");
 
 // Express Configuration
 app.use(express.json());
@@ -51,6 +52,26 @@ db.exec(`
     avg_speed_pxf REAL NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (player_id) REFERENCES players(player_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS round_request_metadata (
+    metadata_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    round_id INTEGER UNIQUE NOT NULL,
+    ip_address TEXT,
+    forwarded_for TEXT,
+    user_agent TEXT,
+    accept_language TEXT,
+    referrer TEXT,
+    protocol TEXT,
+    hostname TEXT,
+    browser_timezone TEXT,
+    browser_language TEXT,
+    screen_width INTEGER,
+    screen_height INTEGER,
+    device_pixel_ratio REAL,
+    platform TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (round_id) REFERENCES game_rounds(round_id)
   );
 `);
 
@@ -92,8 +113,26 @@ app.get("/", (req, res) => {
  */
 app.post("/api/rounds", (req, res) => {
   try {
-    const { nickname, email, totalCollisions, runningTimeMs, timeToFirstCollisionMs, initialBalls, windSpeedKmh, windAngleRad, maxActiveBalls, totalBallsCreated, totalEvaporated, avgSpeedPxf } =
-      req.body;
+    const {
+      nickname,
+      email,
+      totalCollisions,
+      runningTimeMs,
+      timeToFirstCollisionMs,
+      initialBalls,
+      windSpeedKmh,
+      windAngleRad,
+      maxActiveBalls,
+      totalBallsCreated,
+      totalEvaporated,
+      avgSpeedPxf,
+      browserTimezone,
+      browserLanguage,
+      screenWidth,
+      screenHeight,
+      devicePixelRatio,
+      platform,
+    } = req.body;
 
     const cleanNick = (nickname || "ANON").trim().toUpperCase();
     const cleanEmail = email ? email.trim() : null;
@@ -110,26 +149,53 @@ app.post("/api/rounds", (req, res) => {
       const player = db.prepare(`SELECT player_id FROM players WHERE nickname = ?`).get(cleanNick);
 
       // Log game round
-      db.prepare(
-        `
+      const round = db
+        .prepare(
+          `
         INSERT INTO game_rounds (
           player_id, total_collisions, running_time_ms, time_to_first_collision_ms,
           initial_balls, wind_speed_kmh, wind_angle_rad, max_active_balls,
           total_balls_created, total_evaporated, avg_speed_pxf
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
+        )
+        .run(
+          player.player_id,
+          totalCollisions || 0,
+          runningTimeMs || 0,
+          timeToFirstCollisionMs || 0,
+          initialBalls || 2,
+          windSpeedKmh || 0,
+          windAngleRad || 0,
+          maxActiveBalls || 0,
+          totalBallsCreated || 0,
+          totalEvaporated || 0,
+          avgSpeedPxf || 0,
+        );
+
+      db.prepare(
+        `
+        INSERT INTO round_request_metadata (
+          round_id, ip_address, forwarded_for, user_agent, accept_language,
+          referrer, protocol, hostname, browser_timezone, browser_language,
+          screen_width, screen_height, device_pixel_ratio, platform
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
       ).run(
-        player.player_id,
-        totalCollisions || 0,
-        runningTimeMs || 0,
-        timeToFirstCollisionMs || 0,
-        initialBalls || 2,
-        windSpeedKmh || 0,
-        windAngleRad || 0,
-        maxActiveBalls || 0,
-        totalBallsCreated || 0,
-        totalEvaporated || 0,
-        avgSpeedPxf || 0,
+        round.lastInsertRowid,
+        req.ip || null,
+        req.get("x-forwarded-for") || null,
+        req.get("user-agent") || null,
+        req.get("accept-language") || null,
+        req.get("referer") || null,
+        req.protocol || null,
+        req.hostname || null,
+        browserTimezone || null,
+        browserLanguage || null,
+        Number.isFinite(Number(screenWidth)) ? Number(screenWidth) : null,
+        Number.isFinite(Number(screenHeight)) ? Number(screenHeight) : null,
+        Number.isFinite(Number(devicePixelRatio)) ? Number(devicePixelRatio) : null,
+        platform || null,
       );
     });
 
