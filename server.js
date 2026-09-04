@@ -109,6 +109,13 @@ function credentialsMatch(username, password) {
   return username === ADMIN_USERNAME && password === ADMIN_PASSWORD && ADMIN_USERNAME && ADMIN_PASSWORD;
 }
 
+/** Normalize IPv4-mapped IPv6 addresses returned by Node's network stack. */
+function normalizeIpAddress(ipAddress) {
+  if (!ipAddress) return null;
+  if (ipAddress === "::1") return "127.0.0.1";
+  return ipAddress.startsWith("::ffff:") ? ipAddress.slice(7) : ipAddress;
+}
+
 /**
  * Render the game page with the current global high score.
  * @param {import('express').Request} req Express request.
@@ -217,7 +224,7 @@ app.post("/api/rounds", (req, res) => {
       `,
       ).run(
         round.lastInsertRowid,
-        req.ip || null,
+        normalizeIpAddress(req.ip),
         req.get("x-forwarded-for") || null,
         req.get("user-agent") || null,
         req.get("accept-language") || null,
