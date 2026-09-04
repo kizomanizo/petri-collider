@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Console | <%= appName %>
+  </title>
+  <style>
+    :root {
+      --ink: #17212b;
+      --muted: #65747e;
+      --paper: #f4f1e8;
+      --panel: #fffdf7;
+      --accent: #c95536;
+      --green: #2f765c;
+      --line: #cbd0c9;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #f4f1e8, #e5ece8);
+      color: var(--ink);
+      font-family: Georgia, 'Times New Roman', serif;
+    }
+
+    .shell {
+      width: min(1500px, 100%);
+      margin: 0 auto;
+      padding: 28px clamp(16px, 4vw, 56px) 56px;
+    }
+
+    .masthead {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 9px;
+      color: var(--accent);
+      font: 700 .72rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.4rem, 6vw, 5rem);
+      line-height: .88;
+    }
+
+    .masthead p {
+      margin: 12px 0 0;
+      color: var(--muted);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      white-space: nowrap;
+    }
+
+    .admin-name {
+      color: var(--muted);
+      font: .76rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    button {
+      padding: 10px 14px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: #fffdf7;
+      cursor: pointer;
+      font: 700 .72rem ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    button:hover {
+      background: var(--accent);
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 247, .86);
+    }
+
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font: 700 .68rem ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 7px;
+      font-size: 1.8rem;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    table {
+      width: 100%;
+      min-width: 800px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--ink);
+      color: #fffdf7;
+      font: 700 .68rem ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    td {
+      font-size: .94rem;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .round-id,
+    .score {
+      font: 700 .9rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .score {
+      color: var(--accent);
+      font-size: 1.25rem;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    details {
+      min-width: 210px;
+    }
+
+    summary {
+      color: var(--green);
+      cursor: pointer;
+      font: 700 .72rem ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(150px, 1fr));
+      gap: 10px 18px;
+      min-width: 600px;
+      margin: 14px 0 3px;
+      padding: 15px;
+      border-left: 3px solid var(--accent);
+      background: #f7f4eb;
+    }
+
+    .detail-group {
+      padding-bottom: 8px;
+    }
+
+    .detail-group h3 {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: var(--accent);
+      font: 700 .7rem ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .detail-group p {
+      margin: 4px 0 0;
+      overflow-wrap: anywhere;
+      font: .78rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .detail-group strong {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 20px;
+      font: .78rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .pagination a {
+      color: var(--ink);
+    }
+
+    .pagination a[aria-disabled="true"] {
+      pointer-events: none;
+      color: #a5aaa5;
+    }
+
+    .empty {
+      padding: 42px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 650px) {
+      .masthead {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-grid {
+        min-width: 0;
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">Private data console</p>
+        <h1>
+          <%= appName %>
+        </h1>
+        <p>Round telemetry, player records, and request context.</p>
+      </div>
+      <div class="actions">
+        <span class="admin-name">signed in as <%= adminUsername %></span>
+        <form method="post" action="/admin/logout"><button type="submit">Log out</button></form>
+      </div>
+    </header>
+
+    <section class="summary" aria-label="Database summary">
+      <div class="stat"><span class="stat-label">Rounds stored</span><span class="stat-value">
+          <%= totalRounds %>
+        </span></div>
+      <div class="stat"><span class="stat-label">Page</span><span class="stat-value">
+          <%= page %> / <%= totalPages %>
+        </span></div>
+      <div class="stat"><span class="stat-label">Rows per page</span><span class="stat-value">
+          <%= pageSize %>
+        </span></div>
+    </section>
+
+    <% if (rounds.length===0) { %>
+      <div class="empty">No rounds have been submitted yet.</div>
+      <% } else { %>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Round</th>
+                <th>Created</th>
+                <th>Player</th>
+                <th>Score</th>
+                <th>Run time</th>
+                <th>Request</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% rounds.forEach(round=> { %>
+                <tr>
+                  <td><span class="round-id">#<%= round.roundId %></span></td>
+                  <td>
+                    <%= round.createdAt %>
+                  </td>
+                  <td><strong>
+                      <%= round.nickname || 'ANON' %>
+                    </strong><br><span class="muted">
+                      <%= round.email || 'No email' %>
+                    </span></td>
+                  <td><span class="score">
+                      <%= round.totalCollisions %>
+                    </span></td>
+                  <td>
+                    <%= round.runningTimeMs %> ms
+                  </td>
+                  <td>
+                    <details>
+                      <summary>Expand details</summary>
+                      <div class="detail-grid">
+                        <div class="detail-group">
+                          <h3>Player</h3>
+                          <p><strong>ID</strong>
+                            <%= round.playerId ?? 'n/a' %>
+                          </p>
+                          <p><strong>Created</strong>
+                            <%= round.playerCreatedAt || 'n/a' %>
+                          </p>
+                        </div>
+                        <div class="detail-group">
+                          <h3>Round</h3>
+                          <p><strong>First collision</strong>
+                            <%= round.timeToFirstCollisionMs ?? 'n/a' %> ms
+                          </p>
+                          <p><strong>Initial balls</strong>
+                            <%= round.initialBalls %>
+                          </p>
+                          <p><strong>Max active</strong>
+                            <%= round.maxActiveBalls %>
+                          </p>
+                          <p><strong>Total created</strong>
+                            <%= round.totalBallsCreated %>
+                          </p>
+                          <p><strong>Evaporated</strong>
+                            <%= round.totalEvaporated %>
+                          </p>
+                          <p><strong>Average speed</strong>
+                            <%= round.avgSpeedPxf %> px/f
+                          </p>
+                        </div>
+                        <div class="detail-group">
+                          <h3>Wind</h3>
+                          <p><strong>Speed</strong>
+                            <%= round.windSpeedKmh %> km/h
+                          </p>
+                          <p><strong>Angle</strong>
+                            <%= round.windAngleRad %> rad
+                          </p>
+                        </div>
+                        <div class="detail-group">
+                          <h3>Network</h3>
+                          <p><strong>IP</strong>
+                            <%= round.ipAddress || 'n/a' %>
+                          </p>
+                          <p><strong>Forwarded for</strong>
+                            <%= round.forwardedFor || 'n/a' %>
+                          </p>
+                          <p><strong>Protocol</strong>
+                            <%= round.protocol || 'n/a' %>
+                          </p>
+                          <p><strong>Hostname</strong>
+                            <%= round.hostname || 'n/a' %>
+                          </p>
+                          <p><strong>Referrer</strong>
+                            <%= round.referrer || 'n/a' %>
+                          </p>
+                        </div>
+                        <div class="detail-group">
+                          <h3>Device</h3>
+                          <p><strong>Platform</strong>
+                            <%= round.platform || 'n/a' %>
+                          </p>
+                          <p><strong>User agent</strong>
+                            <%= round.userAgent || 'n/a' %>
+                          </p>
+                          <p><strong>Language</strong>
+                            <%= round.browserLanguage || 'n/a' %>
+                          </p>
+                          <p><strong>Accept language</strong>
+                            <%= round.acceptLanguage || 'n/a' %>
+                          </p>
+                          <p><strong>Timezone</strong>
+                            <%= round.browserTimezone || 'n/a' %>
+                          </p>
+                          <p><strong>Screen</strong>
+                            <%= round.screenWidth || 'n/a' %> x <%= round.screenHeight || 'n/a' %>
+                          </p>
+                          <p><strong>Pixel ratio</strong>
+                            <%= round.devicePixelRatio || 'n/a' %>
+                          </p>
+                        </div>
+                      </div>
+                    </details>
+                  </td>
+                </tr>
+                <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <nav class="pagination" aria-label="Pagination">
+          <a href="/admin?page=<%= page - 1 %>" aria-disabled="<%= page <= 1 %>">← Previous</a>
+          <span>Page <%= page %> of <%= totalPages %></span>
+          <a href="/admin?page=<%= page + 1 %>" aria-disabled="<%= page >= totalPages %>">Next →</a>
+        </nav>
+        <% } %>
+  </main>
+</body>
+
+</html>

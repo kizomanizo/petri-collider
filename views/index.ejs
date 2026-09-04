@@ -560,6 +560,7 @@
 
     let balls = [];
     let ballToBallCollisions = 0;
+    let hasRecordedRound = false;
 
     let personalHighScore = parseInt(localStorage.getItem('petri_personal_high') || '0', 10);
     // let globalHighScore = parseInt(localStorage.getItem('petri_global_high') || '142', 10);
@@ -830,36 +831,6 @@
       chartCtx.setLineDash([]);
     }
 
-    /**
-     * Persist a completed score locally and submit its telemetry to the server.
-     * @param {number} finalScore Number of ball-to-ball collisions in the round.
-     */
-    function recordRunScore(finalScore) {
-      personalHistory.push(finalScore);
-      if (personalHistory.length > 100) {
-        personalHistory.shift();
-      }
-      localStorage.setItem('petri_history', JSON.stringify(personalHistory));
-
-      if (finalScore > personalHighScore) {
-        personalHighScore = finalScore;
-        localStorage.setItem('petri_personal_high', personalHighScore);
-        topPersonalHighScoreEl.textContent = personalHighScore;
-      }
-
-      if (finalScore > globalHighScore) {
-        globalHighScore = finalScore;
-        globalHighScorePlayer = userNickname || 'ANON';
-        localStorage.setItem('petri_global_high', globalHighScore);
-        localStorage.setItem('petri_global_player', globalHighScorePlayer);
-
-        topGlobalHighScoreEl.textContent = globalHighScore;
-        globalTagEl.textContent = globalHighScorePlayer.toUpperCase();
-      }
-
-      renderHistoryChart();
-    }
-
     // --- POINTER INTERACTIONS ---
     /** Begin a launcher drag, or reset the current round when running. */
     function handlePointerDown(e) {
@@ -947,6 +918,7 @@
       container.innerHTML = '';
       balls = [];
       ballToBallCollisions = 0;
+      hasRecordedRound = false;
       totalEverCreated = 0;
       totalEvaporated = 0;
       firstCollisionOccurred = false;
@@ -1298,6 +1270,9 @@
      * @param {number} finalScore Number of ball-to-ball collisions in the round.
      */
     function recordRunScore(finalScore) {
+      if (hasRecordedRound) return;
+      hasRecordedRound = true;
+
       personalHistory.push(finalScore);
       if (personalHistory.length > 100) personalHistory.shift();
       localStorage.setItem('petri_history', JSON.stringify(personalHistory));

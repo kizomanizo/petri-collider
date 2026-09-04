@@ -42,12 +42,15 @@ node --check server.js
 
 Create `.env` in the project root. `.env` is ignored by Git; use `example.env` as the shareable template.
 
-| Variable      | Default            | Description                                                       |
-| ------------- | ------------------ | ----------------------------------------------------------------- |
-| `PORT`        | `3000`             | HTTP port used by Express                                         |
-| `APP_NAME`    | `Petri Collider`   | Name printed in the server startup message                        |
-| `DB_FILE`     | `petricollider.db` | SQLite filename or path, resolved from the project directory      |
-| `TRUST_PROXY` | `false`            | Trust reverse-proxy headers when resolving client IP and protocol |
+| Variable         | Default            | Description                                                       |
+| ---------------- | ------------------ | ----------------------------------------------------------------- |
+| `PORT`           | `3000`             | HTTP port used by Express                                         |
+| `APP_NAME`       | `Petri Collider`   | Name printed in the server startup message                        |
+| `DB_FILE`        | `petricollider.db` | SQLite filename or path, resolved from the project directory      |
+| `TRUST_PROXY`    | `false`            | Trust reverse-proxy headers when resolving client IP and protocol |
+| `ADMIN_USERNAME` | unset              | Username allowed to access the admin console                      |
+| `ADMIN_PASSWORD` | unset              | Password allowed to access the admin console                      |
+| `SESSION_SECRET` | unset              | Secret used to sign admin session cookies                         |
 
 The repository's example configuration uses port `3800`:
 
@@ -56,6 +59,9 @@ PORT=3800
 APP_NAME=PetriCollider
 DB_FILE=petricollider.db
 TRUST_PROXY=false
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-this-password
+SESSION_SECRET=replace-with-a-long-random-secret
 ```
 
 ## Project Structure
@@ -96,6 +102,14 @@ Stores one completed round. The request body is JSON:
   "avgSpeedPxf": 4.6
 }
 ```
+
+## Admin Console
+
+Open `/admin/login` and sign in with `ADMIN_USERNAME` and `ADMIN_PASSWORD` from `.env`. Successful authentication creates an HTTP-only, same-site session cookie backed by SQLite. Sessions expire after eight hours, and `/admin/logout` ends the session.
+
+The protected `/admin` view shows 20 rounds per page. Each row summarizes the round, player, score, and runtime; expand a row to inspect all physics, player, network, and device metadata fields. The console is intentionally read-only.
+
+Set a long random `SESSION_SECRET` in production and replace the example admin password before exposing the app. IP addresses, user agents, device characteristics, and browser context are personal data; restrict admin access and retain only what the project needs.
 
 The response includes the current global high score:
 

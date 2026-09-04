@@ -2,6 +2,8 @@ require("dotenv").config();
 
 const express = require("express");
 const Database = require("better-sqlite3");
+const session = require("express-session");
+const SqliteStore = require("better-sqlite3-session-store")(session);
 const path = require("path");
 
 /**
@@ -12,6 +14,9 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const APP_NAME = process.env.APP_NAME || "Petri Collider";
 const DB_FILE = process.env.DB_FILE || "petricollider.db";
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const SESSION_SECRET = process.env.SESSION_SECRET || "";
 app.locals.appName = APP_NAME;
 app.set("trust proxy", process.env.TRUST_PROXY === "true");
 
@@ -74,6 +79,35 @@ db.exec(`
     FOREIGN KEY (round_id) REFERENCES game_rounds(round_id)
   );
 `);
+
+app.use(
+  session({
+    store: new SqliteStore({
+      client: db,
+      expired: { clear: true, intervalMs: 15 * 60 * 1000 },
+    }),
+    secret: SESSION_SECRET || "development-only-session-secret",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 8 * 60 * 60 * 1000,
+    },
+  }),
+);
+
+/** Require an authenticated admin session. */
+function requireAdmin(req, res, next) {
+  if (req.session.isAdmin) return next();
+  res.redirect("/admin/login");
+}
+
+/** Compare credentials without revealing whether the username or password matched. */
+function credentialsMatch(username, password) {
+  return username === ADMIN_USERNAME && password === ADMIN_PASSWORD && ADMIN_USERNAME && ADMIN_PASSWORD;
+}
 
 /**
  * Render the game page with the current global high score.
@@ -219,6 +253,95 @@ app.post("/api/rounds", (req, res) => {
     console.error("Error logging round:", err);
     res.status(500).json({ success: false, error: "Database error" });
   }
+});
+
+/** Render the admin login form. */
+app.get("/admin/login", (req, res) => {
+  if (req.session.isAdmin) return res.redirect("/admin");
+  res.render("admin-login", { error: null, configured: Boolean(ADMIN_USERNAME && ADMIN_PASSWORD && SESSION_SECRET) });
+});
+
+/** Authenticate the configured admin account and create a session. */
+app.post("/admin/login", (req, res) => {
+  const { username = "", password = "" } = req.body;
+
+  if (!credentialsMatch(username.trim(), password)) {
+    return res.status(401).render("admin-login", {
+      error: "Invalid admin credentials.",
+      configured: Boolean(ADMIN_USERNAME && ADMIN_PASSWORD && SESSION_SECRET),
+    });
+  }
+
+  req.session.isAdmin = true;
+  req.session.adminUsername = ADMIN_USERNAME;
+  req.session.save(() => res.redirect("/admin"));
+});
+
+/** Render a paginated, expandable view of rounds and their related records. */
+app.get("/admin", requireAdmin, (req, res) => {
+  const pageSize = 20;
+  const requestedPage = Number.parseInt(req.query.page, 10) || 1;
+  const totalRounds = db.prepare("SELECT COUNT(*) AS count FROM game_rounds").get().count;
+  const totalPages = Math.max(1, Math.ceil(totalRounds / pageSize));
+  const page = Math.min(Math.max(requestedPage, 1), totalPages);
+  const offset = (page - 1) * pageSize;
+
+  const rounds = db
+    .prepare(
+      `
+      SELECT
+        g.round_id AS roundId,
+        g.created_at AS createdAt,
+        g.total_collisions AS totalCollisions,
+        g.running_time_ms AS runningTimeMs,
+        g.time_to_first_collision_ms AS timeToFirstCollisionMs,
+        g.initial_balls AS initialBalls,
+        g.wind_speed_kmh AS windSpeedKmh,
+        g.wind_angle_rad AS windAngleRad,
+        g.max_active_balls AS maxActiveBalls,
+        g.total_balls_created AS totalBallsCreated,
+        g.total_evaporated AS totalEvaporated,
+        g.avg_speed_pxf AS avgSpeedPxf,
+        p.player_id AS playerId,
+        p.nickname,
+        p.email,
+        p.created_at AS playerCreatedAt,
+        m.ip_address AS ipAddress,
+        m.forwarded_for AS forwardedFor,
+        m.user_agent AS userAgent,
+        m.accept_language AS acceptLanguage,
+        m.referrer,
+        m.protocol,
+        m.hostname,
+        m.browser_timezone AS browserTimezone,
+        m.browser_language AS browserLanguage,
+        m.screen_width AS screenWidth,
+        m.screen_height AS screenHeight,
+        m.device_pixel_ratio AS devicePixelRatio,
+        m.platform
+      FROM game_rounds g
+      LEFT JOIN players p ON p.player_id = g.player_id
+      LEFT JOIN round_request_metadata m ON m.round_id = g.round_id
+      ORDER BY g.created_at DESC, g.round_id DESC
+      LIMIT ? OFFSET ?
+    `,
+    )
+    .all(pageSize, offset);
+
+  res.render("admin", {
+    appName: APP_NAME,
+    adminUsername: req.session.adminUsername,
+    rounds,
+    page,
+    pageSize,
+    totalRounds,
+    totalPages,
+  });
+});
+
+/** Destroy the admin session and return to the login form. */
+app.post("/admin/logout", requireAdmin, (req, res) => {
+  req.session.destroy(() => res.redirect("/admin/login"));
 });
 
 app.listen(PORT, () => {
