@@ -13,8 +13,15 @@ Petri Collider is a retro dot-matrix browser game built with Node.js and Express
 
 ## Requirements
 
-- Node.js 18 or newer
-- npm
+- Node.js `26.8.1`
+- npm 11 or newer
+
+The required Node version is pinned in `.nvmrc`. With nvm installed, use:
+
+```bash
+nvm install
+nvm use
+```
 
 ## Setup
 
