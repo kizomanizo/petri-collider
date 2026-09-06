@@ -27,3 +27,6 @@ build/
 # Local tooling and OS files
 .DS_Store
 .vscode/
+
+# Bot Instructions
+bot-instructions

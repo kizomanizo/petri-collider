@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Petri Collider">
+  <rect width="512" height="512" fill="#ffffff"/>
+  <circle cx="256" cy="256" r="198" fill="#ffffff" stroke="#111111" stroke-width="28"/>
+  <circle cx="292" cy="214" r="22" fill="#111111"/>
+  <circle cx="198" cy="268" r="18" fill="#111111"/>
+  <circle cx="262" cy="318" r="16" fill="#111111"/>
+  <circle cx="216" cy="188" r="13" fill="#111111"/>
+  <circle cx="336" cy="292" r="12" fill="#111111"/>
+</svg>

@@ -4,6 +4,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#111111">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <title>Petri Collider</title>
   <style>
     @font-face {
@@ -406,6 +411,105 @@
     .modal-btn-save:hover {
       background: #333333;
     }
+
+    .score-block-global {
+      cursor: pointer;
+    }
+
+    .score-block-global .score-label {
+      text-decoration: underline;
+    }
+
+    .leaderboard-card {
+      max-width: 420px;
+      width: 92%;
+      max-height: 85vh;
+    }
+
+    .leaderboard-tabs {
+      display: flex;
+      border: 2px solid #111111;
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .leaderboard-tab {
+      flex: 1;
+      font-family: 'DotMatrix', monospace;
+      font-size: 0.7rem;
+      font-weight: bold;
+      padding: 8px 6px;
+      border: none;
+      background: #ffffff;
+      color: #111111;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .leaderboard-tab + .leaderboard-tab {
+      border-left: 2px solid #111111;
+    }
+
+    .leaderboard-tab.active {
+      background: #111111;
+      color: #ffffff;
+    }
+
+    .leaderboard-table-wrap {
+      max-height: 46vh;
+      overflow-y: auto;
+      border: 2px solid #111111;
+      border-radius: 8px;
+    }
+
+    .leaderboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.7rem;
+    }
+
+    .leaderboard-table th,
+    .leaderboard-table td {
+      padding: 6px 8px;
+      text-align: left;
+    }
+
+    .leaderboard-table th {
+      position: sticky;
+      top: 0;
+      background: #111111;
+      color: #ffffff;
+      font-weight: bold;
+      letter-spacing: 0.4px;
+    }
+
+    .leaderboard-table td {
+      border-top: 1px dotted #111111;
+    }
+
+    .leaderboard-table tr.is-you td {
+      color: #d32f2f;
+      font-weight: bold;
+    }
+
+    .leaderboard-table .col-rank {
+      width: 2.4em;
+    }
+
+    .leaderboard-table .col-time,
+    .leaderboard-table td:last-child {
+      text-align: right;
+    }
+
+    .leaderboard-status {
+      font-size: 0.65rem;
+      text-align: center;
+      min-height: 14px;
+      color: #555;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
   </style>
 </head>
 
@@ -424,7 +528,7 @@
           <span class="score-value" id="topPersonalHighScore">0</span>
           <span class="player-tag" id="personalTag">YOU</span>
         </div>
-        <div class="score-block">
+        <div class="score-block score-block-global" id="globalHighBlock">
           <span class="score-label">GLOBAL HIGH</span>
           <span class="score-value" id="topGlobalHighScore">0</span>
           <span class="player-tag" id="globalTag">ANON</span>
@@ -505,6 +609,37 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="leaderboardModal">
+    <div class="modal-card leaderboard-card">
+      <div class="modal-title">GLOBAL LEADERBOARD</div>
+
+      <div class="leaderboard-tabs">
+        <button type="button" class="leaderboard-tab active" data-type="top" id="leaderboardTabTop">TOP 10</button>
+        <button type="button" class="leaderboard-tab" data-type="recent" id="leaderboardTabRecent">RECENT RUNS</button>
+      </div>
+
+      <div class="leaderboard-table-wrap">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th class="col-rank"># RANK</th>
+              <th>PLAYER</th>
+              <th>COLLISIONS</th>
+              <th class="col-time">TIME</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+
+      <div class="leaderboard-status" id="leaderboardStatus"></div>
+
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn-cancel" id="closeLeaderboardBtn">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
   <script>
 
     /**
@@ -524,6 +659,12 @@
     const profileModalEl = document.getElementById('profileModal');
     const closeModalBtn = document.getElementById('closeModalBtn');
     const saveProfileBtn = document.getElementById('saveProfileBtn');
+    const globalHighBlockEl = document.getElementById('globalHighBlock');
+    const leaderboardModalEl = document.getElementById('leaderboardModal');
+    const leaderboardBodyEl = document.getElementById('leaderboardBody');
+    const leaderboardStatusEl = document.getElementById('leaderboardStatus');
+    const closeLeaderboardBtn = document.getElementById('closeLeaderboardBtn');
+    const leaderboardTabs = document.querySelectorAll('.leaderboard-tab');
     const nicknameInput = document.getElementById('nicknameInput');
     const emailInput = document.getElementById('emailInput');
     const nicknameError = document.getElementById('nicknameError');
@@ -623,6 +764,72 @@
       nicknameError.textContent = '';
       emailError.textContent = '';
       profileModalEl.classList.add('active');
+    });
+
+    let leaderboardType = 'top';
+
+    /** Fetch ranked rounds and render them in the leaderboard modal. */
+    function fetchLeaderboard(type) {
+      leaderboardStatusEl.textContent = 'LOADING...';
+      fetch(`/api/leaderboard?type=${encodeURIComponent(type)}&limit=10`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.success) throw new Error('Leaderboard unavailable');
+          renderLeaderboard(data.entries || []);
+          leaderboardStatusEl.textContent = (data.entries && data.entries.length) ? '' : 'NO RUNS YET';
+        })
+        .catch(() => {
+          renderLeaderboard([]);
+          leaderboardStatusEl.textContent = 'OFFLINE — UNABLE TO LOAD';
+        });
+    }
+
+    /** Escape text before inserting it into the leaderboard table. */
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /** Draw leaderboard rows and highlight the current local player in red. */
+    function renderLeaderboard(entries) {
+      const currentNick = (userNickname || '').trim().toUpperCase();
+      leaderboardBodyEl.innerHTML = entries.map((entry) => {
+        const nick = String(entry.nickname || 'ANON').toUpperCase();
+        const isYou = currentNick && nick === currentNick;
+        return `<tr class="${isYou ? 'is-you' : ''}">
+          <td>${escapeHtml(entry.rank)}</td>
+          <td>${escapeHtml(nick)}</td>
+          <td>${escapeHtml(entry.total_collisions)}</td>
+          <td>${escapeHtml(formatTime(entry.running_time_ms || 0))}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    /** Open the dedicated global leaderboard modal and load the active tab. */
+    function openLeaderboardModal() {
+      leaderboardModalEl.classList.add('active');
+      fetchLeaderboard(leaderboardType);
+    }
+
+    globalHighBlockEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openLeaderboardModal();
+    });
+
+    closeLeaderboardBtn.addEventListener('click', () => {
+      leaderboardModalEl.classList.remove('active');
+    });
+
+    leaderboardTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        leaderboardTabs.forEach((item) => item.classList.remove('active'));
+        tab.classList.add('active');
+        leaderboardType = tab.dataset.type;
+        fetchLeaderboard(leaderboardType);
+      });
     });
 
     closeModalBtn.addEventListener('click', () => {
@@ -1319,6 +1526,7 @@
             topGlobalHighScoreEl.textContent = globalHighScore;
             globalTagEl.textContent = globalHighScorePlayer.toUpperCase();
           }
+          fetchLeaderboard(leaderboardType);
         })
         .catch(err => console.error('Telemetry error:', err));
 
@@ -1336,6 +1544,16 @@
       initTriggerCanvas();
       initChartCanvas();
     }, 50);
+  </script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch((err) => {
+          console.error("ServiceWorker registration failed: ", err);
+        });
+      });
+    }
   </script>
 
 </body>

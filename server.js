@@ -78,6 +78,11 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (round_id) REFERENCES game_rounds(round_id)
   );
+
+  CREATE INDEX IF NOT EXISTS idx_game_rounds_total_collisions
+    ON game_rounds(total_collisions DESC);
+  CREATE INDEX IF NOT EXISTS idx_game_rounds_created_at
+    ON game_rounds(created_at DESC);
 `);
 
 app.use(
@@ -258,6 +263,55 @@ app.post("/api/rounds", (req, res) => {
     res.json({ success: true, globalHigh: newGlobal });
   } catch (err) {
     console.error("Error logging round:", err);
+    res.status(500).json({ success: false, error: "Database error" });
+  }
+});
+
+/**
+ * Return ranked game rounds for the public leaderboard modal.
+ * @param {import('express').Request} req Query: type=top|recent, limit=1-100.
+ * @param {import('express').Response} res Express response.
+ */
+app.get("/api/leaderboard", (req, res) => {
+  try {
+    const type = req.query.type === "recent" ? "recent" : "top";
+    const requestedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 10;
+
+    const orderBy =
+      type === "recent"
+        ? "g.created_at DESC, g.round_id DESC"
+        : "g.total_collisions DESC, g.created_at ASC, g.round_id ASC";
+
+    const rows = db
+      .prepare(
+        `
+      SELECT
+        p.nickname,
+        g.total_collisions,
+        g.running_time_ms,
+        g.initial_balls,
+        g.created_at
+      FROM game_rounds g
+      JOIN players p ON g.player_id = p.player_id
+      ORDER BY ${orderBy}
+      LIMIT ?
+    `,
+      )
+      .all(limit);
+
+    const entries = rows.map((row, index) => ({
+      rank: index + 1,
+      nickname: row.nickname,
+      total_collisions: row.total_collisions,
+      running_time_ms: row.running_time_ms,
+      initial_balls: row.initial_balls,
+      created_at: row.created_at,
+    }));
+
+    res.json({ success: true, type, limit, entries });
+  } catch (err) {
+    console.error("Leaderboard error:", err);
     res.status(500).json({ success: false, error: "Database error" });
   }
 });
