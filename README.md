@@ -54,7 +54,7 @@ Create `.env` in the project root. `.env` is ignored by Git; use `example.env` a
 | `PORT`           | `3000`             | HTTP port used by Express                                         |
 | `APP_NAME`       | `Petri Collider`   | Name printed in the server startup message                        |
 | `DB_FILE`        | `petricollider.db` | SQLite filename or path, resolved from the project directory      |
-| `TRUST_PROXY`    | `false`            | Trust reverse-proxy headers when resolving client IP and protocol |
+| `TRUST_PROXY`    | `false`            | Trust client-IP headers from any hop. Local reverse proxies are auto-trusted |
 | `ADMIN_USERNAME` | unset              | Username allowed to access the admin console                      |
 | `ADMIN_PASSWORD` | unset              | Password allowed to access the admin console                      |
 | `SESSION_SECRET` | unset              | Secret used to sign admin session cookies                         |
@@ -132,7 +132,7 @@ The response includes the current global high score:
 
 ## Data and Browser Storage
 
-SQLite is initialized automatically on startup with `players`, `game_rounds`, and `round_request_metadata` tables. WAL mode is enabled for local database performance. Each submitted round stores request metadata such as IP address, user agent, language, referrer, protocol, hostname, and browser context. Geographic location is not collected because IP geolocation requires a separate provider and privacy policy decision. Set `TRUST_PROXY=true` only when Express runs behind a trusted reverse proxy.
+SQLite is initialized automatically on startup with `players`, `game_rounds`, and `round_request_metadata` tables. WAL mode is enabled for local database performance. Each submitted round stores request metadata such as IP address, user agent, language, referrer, protocol, hostname, and browser context. Geographic location is not collected because IP geolocation requires a separate provider and privacy policy decision. When the TCP peer is localhost or a private hop, the server also reads `X-Real-IP`, `X-Forwarded-For`, and `CF-Connecting-IP` so a same-host reverse proxy does not get stored as `127.0.0.1`. Set `TRUST_PROXY=true` if a public proxy hop should be trusted as well.
 
 The browser stores the current profile, personal high score, and the last 100 personal scores in `localStorage`. Clearing site data removes those local values but does not remove server-side telemetry.
 

@@ -17,8 +17,9 @@ const DB_FILE = process.env.DB_FILE || "petricollider.db";
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || "";
+const TRUST_PROXY = process.env.TRUST_PROXY === "true";
 app.locals.appName = APP_NAME;
-app.set("trust proxy", process.env.TRUST_PROXY === "true");
+app.set("trust proxy", TRUST_PROXY);
 
 // Express Configuration
 app.use(express.json());
@@ -114,11 +115,96 @@ function credentialsMatch(username, password) {
   return username === ADMIN_USERNAME && password === ADMIN_PASSWORD && ADMIN_USERNAME && ADMIN_PASSWORD;
 }
 
-/** Normalize IPv4-mapped IPv6 addresses returned by Node's network stack. */
+/** Normalize IPv4-mapped IPv6 addresses and loopback aliases. */
 function normalizeIpAddress(ipAddress) {
   if (!ipAddress) return null;
-  if (ipAddress === "::1") return "127.0.0.1";
-  return ipAddress.startsWith("::ffff:") ? ipAddress.slice(7) : ipAddress;
+  const trimmed = String(ipAddress).trim().replace(/^"|"$/g, "");
+  if (!trimmed || trimmed.toLowerCase() === "unknown") return null;
+  if (trimmed === "::1") return "127.0.0.1";
+  return trimmed.startsWith("::ffff:") ? trimmed.slice(7) : trimmed;
+}
+
+/** Drop a trailing port from an IPv4 or bracketed IPv6 address. */
+function stripAddressPort(ipAddress) {
+  if (!ipAddress) return null;
+  if (ipAddress.startsWith("[")) {
+    const end = ipAddress.indexOf("]");
+    return end > 0 ? ipAddress.slice(1, end) : ipAddress;
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ipAddress)) return ipAddress.split(":")[0];
+  return ipAddress;
+}
+
+/** True when the peer is a typical reverse-proxy hop on this host or LAN. */
+function isLocalProxyPeer(ipAddress) {
+  const ip = normalizeIpAddress(ipAddress);
+  if (!ip) return false;
+  if (ip === "127.0.0.1") return true;
+  if (ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("169.254.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  return false;
+}
+
+/** Take the left-most IP from a comma-separated forwarding header. */
+function firstForwardedIp(headerValue) {
+  if (!headerValue) return null;
+  return normalizeIpAddress(stripAddressPort(String(headerValue).split(",")[0]));
+}
+
+/** Read the client address from an RFC 7239 Forwarded header. */
+function ipFromForwardedHeader(headerValue) {
+  if (!headerValue) return null;
+  const match = String(headerValue).match(/for=\s*"?\[?([^\]";,\s]+)/i);
+  return match ? normalizeIpAddress(stripAddressPort(match[1])) : null;
+}
+
+/**
+ * Prefer CDN/proxy client headers over the TCP peer when the request
+ * arrived through a trusted reverse proxy (configured or on a private hop).
+ */
+function resolveClientIp(req) {
+  const peer = normalizeIpAddress(req.socket?.remoteAddress);
+  const candidates = [
+    firstForwardedIp(req.get("cf-connecting-ip")),
+    firstForwardedIp(req.get("true-client-ip")),
+    firstForwardedIp(req.get("x-real-ip")),
+    firstForwardedIp(req.get("x-client-ip")),
+    firstForwardedIp(req.get("x-forwarded-for")),
+    ipFromForwardedHeader(req.get("forwarded")),
+  ].filter(Boolean);
+
+  const trustHeaders = TRUST_PROXY || isLocalProxyPeer(peer);
+  if (trustHeaders && candidates.length) {
+    return candidates.find((ip) => !isLocalProxyPeer(ip)) || candidates[0];
+  }
+
+  return peer;
+}
+
+/** Preserve the raw forwarding header chain for the admin console. */
+function resolveForwardedFor(req) {
+  return (
+    req.get("x-forwarded-for") ||
+    req.get("forwarded") ||
+    req.get("x-real-ip") ||
+    req.get("cf-connecting-ip") ||
+    req.get("true-client-ip") ||
+    req.get("x-client-ip") ||
+    null
+  );
+}
+
+/** Prefer the original client scheme when a trusted proxy terminated TLS. */
+function resolveProtocol(req) {
+  const peer = normalizeIpAddress(req.socket?.remoteAddress);
+  if (TRUST_PROXY || isLocalProxyPeer(peer)) {
+    const proto = req.get("x-forwarded-proto") || req.get("x-forwarded-protocol");
+    if (proto) return proto.split(",")[0].trim().toLowerCase();
+    const forwarded = req.get("forwarded");
+    const match = forwarded && forwarded.match(/proto=([^;\s]+)/i);
+    if (match) return match[1].toLowerCase();
+  }
+  return req.protocol || null;
 }
 
 /**
@@ -229,12 +315,12 @@ app.post("/api/rounds", (req, res) => {
       `,
       ).run(
         round.lastInsertRowid,
-        normalizeIpAddress(req.ip),
-        req.get("x-forwarded-for") || null,
+        resolveClientIp(req),
+        resolveForwardedFor(req),
         req.get("user-agent") || null,
         req.get("accept-language") || null,
         req.get("referer") || null,
-        req.protocol || null,
+        resolveProtocol(req),
         req.hostname || null,
         browserTimezone || null,
         browserLanguage || null,
