@@ -90,7 +90,7 @@
 
     .summary {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 12px;
       margin-bottom: 18px;
     }
@@ -237,6 +237,12 @@
       text-align: center;
     }
 
+    @media (max-width: 900px) {
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
     @media (max-width: 650px) {
       .masthead {
         align-items: start;
@@ -286,6 +292,17 @@
       <div class="stat"><span class="stat-label">Rows per page</span><span class="stat-value">
           <%= pageSize %>
         </span></div>
+      <div class="stat"><span class="stat-label">This request</span><span class="stat-value">
+          <%= viewerIp || 'n/a' %>
+        </span>
+        <% if (viewerIpIsProxy) { %>
+          <span class="muted">Proxy hop. nginx is not forwarding the visitor IP.</span>
+        <% } else if (viewerForwarded) { %>
+          <span class="muted">
+            <%= viewerForwarded %>
+          </span>
+        <% } %>
+      </div>
     </section>
 
     <% if (rounds.length===0) { %>
@@ -368,6 +385,9 @@
                           <h3>Network</h3>
                           <p><strong>IP</strong>
                             <%= round.ipAddress || 'n/a' %>
+                            <% if (round.ipAddress === '127.0.0.1' || (round.ipAddress && round.ipAddress.includes('127.0.0.1'))) { %>
+                              <span class="muted">proxy hop</span>
+                            <% } %>
                           </p>
                           <p><strong>Forwarded for</strong>
                             <%= round.forwardedFor || 'n/a' %>

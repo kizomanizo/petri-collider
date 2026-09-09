@@ -1,4 +1,4 @@
-const CACHE_NAME = "petri-collider-v1";
+const CACHE_NAME = "petri-collider-v2";
 const PRECACHE_URLS = [
   "/",
   "/views/index.ejs",

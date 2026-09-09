@@ -145,6 +145,19 @@ function isLocalProxyPeer(ipAddress) {
   return false;
 }
 
+/** True when the value is a routable public IPv4 or IPv6 address. */
+function isPublicIpAddress(ipAddress) {
+  const ip = normalizeIpAddress(stripAddressPort(ipAddress));
+  if (!ip || isLocalProxyPeer(ip)) return false;
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    return ip.split(".").every((octet) => {
+      const value = Number(octet);
+      return Number.isInteger(value) && value >= 0 && value <= 255;
+    });
+  }
+  return /^[0-9a-f:]+$/i.test(ip) && ip.includes(":") && ip.split(":").length >= 3;
+}
+
 /** Take the left-most IP from a comma-separated forwarding header. */
 function firstForwardedIp(headerValue) {
   if (!headerValue) return null;
@@ -181,6 +194,26 @@ function resolveClientIp(req) {
   return peer;
 }
 
+/**
+ * Use proxy headers when they carry a public client, otherwise accept a
+ * browser-reported public IP. The TCP peer of a local reverse proxy is never
+ * a visitor address.
+ */
+function resolveStoredClientIp(req, reportedIp) {
+  const resolved = resolveClientIp(req);
+  const forwardedFor = resolveForwardedFor(req);
+  if (resolved && !isLocalProxyPeer(resolved)) {
+    return { ipAddress: resolved, forwardedFor };
+  }
+  if (isPublicIpAddress(reportedIp)) {
+    return {
+      ipAddress: normalizeIpAddress(stripAddressPort(reportedIp)),
+      forwardedFor: forwardedFor || "client-reported",
+    };
+  }
+  return { ipAddress: resolved, forwardedFor };
+}
+
 /** Preserve the raw forwarding header chain for the admin console. */
 function resolveForwardedFor(req) {
   return (
@@ -203,6 +236,8 @@ function resolveProtocol(req) {
     const forwarded = req.get("forwarded");
     const match = forwarded && forwarded.match(/proto=([^;\s]+)/i);
     if (match) return match[1].toLowerCase();
+    const referrer = req.get("referer");
+    if (referrer && /^https:/i.test(referrer)) return "https";
   }
   return req.protocol || null;
 }
@@ -264,10 +299,12 @@ app.post("/api/rounds", (req, res) => {
       screenHeight,
       devicePixelRatio,
       platform,
+      reportedIp,
     } = req.body;
 
     const cleanNick = (nickname || "ANON").trim().toUpperCase();
     const cleanEmail = email ? email.trim() : null;
+    const client = resolveStoredClientIp(req, reportedIp);
 
     const logRoundTx = db.transaction(() => {
       // Insert/update player
@@ -315,8 +352,8 @@ app.post("/api/rounds", (req, res) => {
       `,
       ).run(
         round.lastInsertRowid,
-        resolveClientIp(req),
-        resolveForwardedFor(req),
+        client.ipAddress,
+        client.forwardedFor,
         req.get("user-agent") || null,
         req.get("accept-language") || null,
         req.get("referer") || null,
@@ -475,6 +512,9 @@ app.get("/admin", requireAdmin, (req, res) => {
     )
     .all(pageSize, offset);
 
+  const viewerIp = resolveClientIp(req);
+  const viewerForwarded = resolveForwardedFor(req);
+
   res.render("admin", {
     appName: APP_NAME,
     adminUsername: req.session.adminUsername,
@@ -483,6 +523,9 @@ app.get("/admin", requireAdmin, (req, res) => {
     pageSize,
     totalRounds,
     totalPages,
+    viewerIp,
+    viewerForwarded,
+    viewerIpIsProxy: isLocalProxyPeer(viewerIp) && !viewerForwarded,
   });
 });
 

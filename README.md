@@ -132,7 +132,20 @@ The response includes the current global high score:
 
 ## Data and Browser Storage
 
-SQLite is initialized automatically on startup with `players`, `game_rounds`, and `round_request_metadata` tables. WAL mode is enabled for local database performance. Each submitted round stores request metadata such as IP address, user agent, language, referrer, protocol, hostname, and browser context. Geographic location is not collected because IP geolocation requires a separate provider and privacy policy decision. When the TCP peer is localhost or a private hop, the server also reads `X-Real-IP`, `X-Forwarded-For`, and `CF-Connecting-IP` so a same-host reverse proxy does not get stored as `127.0.0.1`. Set `TRUST_PROXY=true` if a public proxy hop should be trusted as well.
+SQLite is initialized automatically on startup with `players`, `game_rounds`, and `round_request_metadata` tables. WAL mode is enabled for local database performance. Each submitted round stores request metadata such as IP address, user agent, language, referrer, protocol, hostname, and browser context. Geographic location is not collected because IP geolocation requires a separate provider and privacy policy decision.
+
+Visitor IPs cannot be read from `req.socket.remoteAddress` when nginx (or Caddy) terminates TLS and proxies to `127.0.0.1`. That hop is what produced every `127.0.0.1` row and the empty `forwarded_for` column. The server already reads `X-Real-IP`, `X-Forwarded-For`, `CF-Connecting-IP`, and `Forwarded` when the TCP peer is localhost. Those headers are missing on tankeys-ubuntu today, so the game also asks [ipify](https://www.ipify.org/) for the browser's public IP and stores it only when the proxy left a loopback address. After nginx forwards the client, that fallback is ignored.
+
+Add this to the `location` that proxies Petri Collider, then `sudo nginx -t && sudo systemctl reload nginx`:
+
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+Caddy's `reverse_proxy localhost:3800` sends these headers by default. The admin console shows the IP of the current request in the summary row so you can confirm the proxy without submitting a new round. Set `TRUST_PROXY=true` only if a public proxy hop should be trusted as well.
 
 The browser stores the current profile, personal high score, and the last 100 personal scores in `localStorage`. Clearing site data removes those local values but does not remove server-side telemetry.
 
