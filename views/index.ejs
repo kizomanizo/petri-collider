@@ -757,9 +757,41 @@
     let handlePos = { x: 0, y: 0 };
     let ctx = triggerCanvasEl.getContext('2d');
 
+    /** Keep the personal high in sync with localStorage after back/forward restores. */
+    function applyPersonalHighFromStorage() {
+      const stored = parseInt(localStorage.getItem('petri_personal_high') || '0', 10);
+      if (Number.isFinite(stored) && stored > personalHighScore) {
+        personalHighScore = stored;
+      }
+      topPersonalHighScoreEl.textContent = personalHighScore;
+    }
+
+    /** Replace SSR/cached global high values with the current server record. */
+    function refreshGlobalHighFromServer() {
+      fetch('/api/leaderboard?type=top&limit=1', { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.success || !data.entries || !data.entries[0]) return;
+          const entry = data.entries[0];
+          const score = Number(entry.total_collisions) || 0;
+          if (score >= globalHighScore) {
+            globalHighScore = score;
+            globalHighScorePlayer = entry.nickname || 'ANON';
+            topGlobalHighScoreEl.textContent = globalHighScore;
+            globalTagEl.textContent = String(globalHighScorePlayer).toUpperCase();
+          }
+        })
+        .catch(() => {});
+    }
+
     topPersonalHighScoreEl.textContent = personalHighScore;
     topGlobalHighScoreEl.textContent = globalHighScore;
     globalTagEl.textContent = globalHighScorePlayer.toUpperCase();
+
+    window.addEventListener('pageshow', () => {
+      applyPersonalHighFromStorage();
+      refreshGlobalHighFromServer();
+    });
 
     updateProfileDisplay();
 
@@ -788,7 +820,7 @@
     /** Fetch ranked rounds and render them in the leaderboard modal. */
     function fetchLeaderboard(type) {
       leaderboardStatusEl.textContent = 'LOADING...';
-      fetch(`/api/leaderboard?type=${encodeURIComponent(type)}&limit=10`)
+      fetch(`/api/leaderboard?type=${encodeURIComponent(type)}&limit=10`, { cache: 'no-store' })
         .then((res) => res.json())
         .then((data) => {
           if (!data.success) throw new Error('Leaderboard unavailable');
@@ -1534,6 +1566,7 @@
       fetch('/api/rounds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
         body: JSON.stringify(roundPayload)
       })
         .then(res => res.json())
@@ -1571,6 +1604,15 @@
           console.error("ServiceWorker registration failed: ", err);
         });
       });
+
+      if (navigator.serviceWorker.controller) {
+        let refreshingAfterControllerChange = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (refreshingAfterControllerChange) return;
+          refreshingAfterControllerChange = true;
+          window.location.reload();
+        });
+      }
     }
   </script>
 
